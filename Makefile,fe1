@@ -1,0 +1,54 @@
+# Project:   DDEUtilsJF
+
+# MakeDir:
+#  rm
+
+# Release:
+#  !Help               <- @:Docs.!Help    | VTranslate
+#  !Help               <- @:VersionLog    | Cat
+#  DDEUtils            <- rm.DDEUtils
+
+
+COMPONENT = DDEUtils
+
+RELEASES = rm.$(COMPONENT)
+
+# Final targets:
+export:
+        @echo [No exported components]
+release: $(RELEASES)
+clean:
+
+
+# Toolflags:
+CCflags = -c -depend !Depend -IJFP: -throwback -apcs /NOSWST 
+C++flags = -c -depend !Depend -IC: -throwback
+Linkflags = -nounused -rmf -c++ -o $@ 
+ObjAsmflags = -throwback -NoCache -depend !Depend
+CMHGflags = 
+LibFileflags = -c -o $@
+Squeezeflags = -o $@
+PCflags = -c -depend !Depend -throwback -IP:
+JFPatchflags = -depend !Depend -throwback -out $@
+MakeDllflags = -o $@
+LinkDllflags = $(linkflags)
+
+OBJS = rm.$(COMPONENT)
+
+# Final targets:
+rm.$(COMPONENT):   Source
+        JFPatch $(JFPatchflags) Source
+
+
+# User-editable dependencies:
+
+
+# Static dependencies:
+.SUFFIXES: .j .c .o .cmhg .h
+.c.o:
+        cc $(ccflags) -o $@ $<
+.j.o:
+        JFPatch -in $< $(jfpatchflags)
+
+
+# Dynamic dependencies:

@@ -1,0 +1,44 @@
+                                DDEUtilsJF
+                                ==========
+Version {Module_FullVersionAndDate}
+
+Introduction
+------------
+DDEUtils is very useful. However, it has many faults. One of these is that
+you can't change directory whilst using it. Another is that the directory
+you 'appear' to be in is not actually the directory you 'are' in; that is
+it only looks to the program reading filenames that it is reading them from
+the directory you appear to be in, even though it requested those from the
+directory you appear to be in. That may not make sense initially, and on
+the second or third reading it may sound as if it's correct, but the way
+DDEUtils does it's job is not quite complete.
+
+During the build of Perl recently there have been a number of problems
+encountered with DDEUtils which may (or may not) be solved by this
+re-implementation. I hope that they will be fixed as this was the purpose
+of the project :-) (well, except for fixing a problem which Undelete has
+with DDEUtils).
+
+
+Differences between DDEUtils and DDEUtilsJF
+-------------------------------------------
+Note: 'This version' is DDEUtilsJF, 'Acorn's' is DDEUtils.
+
+  - You cannot run files from the CSD in this version. (if the file is in the
+    csd you cannot run it without giving a full path).
+  - Acorn's sets Prefix$Dir and allows you to change it, this version does
+    not.
+  + Undelete works whilst a prefix is set in this version.
+  + You can use *Dir to change directories in this version
+
+
+Bugs
+----
+There are bound to be bugs in this version other than those mentioned above,
+if you find any, or would like the problems fixed (or explained as to why
+they cannot be fixed :-) ) you can contact me at <Gerph@innocent.com>.
+
+Suggestions and ideas are welcome and I'm very willing to produce a new
+version if there is a need.
+
+

@@ -1,0 +1,263 @@
+In   -
+Out  Prefix
+Type Module
+
+Define Workspace
+ Name      module
+ Default   r12
+  `prefixlist    !   linked list of prefixes
+
+ Name      prefix
+ Default   r5
+  `next          !   the next entry
+  `last          !   make it doubly linked for easy !
+  `domain        !   the domain it's in
+  `prefix        !   pointer to the prefix string
+End Workspace
+
+Define Module
+ Name      Prefix
+ Author    Justin Fletcher
+ Commands
+  Name     MPrefix
+  Code     prefix
+  Max      1
+  Min      0
+
+  Name     Pres
+  Code     pres
+  Help     Lists prefixes
+ End commands
+ Vectors
+  FileV      filev
+  GBPBV      gbpbv
+  FindV      findv
+  FSControlV fscontrolv
+ End Vectors
+ Workspace *`len_module
+End Module
+
+Pre
+ LIBRARY "VersionBas":PROCinit_version
+ module_version$=version_major$
+ module_date$=version_date$
+End Pre
+
+
+>findv
+   B       replacevars
+>fscontrolv
+   B       replacevars
+>gbpbv
+   B       replacevars
+>filev
+   B       replacevars
+
+;need to trap service &53 (WimpClosedown)
+;Vectors-
+;       8,12,13,15
+;     = FileV, GBPBV, FindV, FSControlV
+;code variable Prefix$Dir
+>pres
+   STMFD   (sp)!,{r0-r5,link}            ; Stack registers
+   LDR     r12,[r12]                     ; read our workspace
+   LDRW    r5,`prefixlist                ; read head of list
+$loop
+   CMP     r5,#0                         ; done ?
+   BEQ     $done
+   LDRW    r0,`next                      ; read next
+   LDRW    r1,`last                      ; read last
+   LDRW    r2,`domain                    ; read domainid
+   LDRW    r3,`prefix                    ; read prefix
+   LDRB    r4,[r3],#4                    ; r4 = length of 'fs'
+   ADD     r4,r4,r3                      ; add on to base
+   REM     "This=%&5, Next=%&0, Last=%&1"
+   REM     "Domain=%&2, FS=%$3, CSD=%$4"
+   MOV     r5,r0                         ; this=next
+   B       $loop                         ; and go some more
+$done
+   LDMFD   (sp)!,{r0-r5,pc}              ; Return from call
+
+>prefix
+   STMFD   (sp)!,{r0-r5,link}            ; Stack registers
+   MOV     r3,r0                         ; r3-> string
+   MOV     r4,r1                         ; r4 = args
+   REM     " *Prefix %$3 (%r4)"
+   LDR     r12,[r12]                     ; read our workspace
+   LMOV    r0,#&FF8                      ; address of domain Id
+   LDR     r1,[r0]                       ; read our domain id
+   LDRW    r5,`prefixlist                ; read list
+   RAS     r5,r1,#`domain                ; create the list entry
+   CMP     r5,#0                         ; is it valid ?
+   BEQ     $createanew                   ; nope, so we create one specially
+   LDRW    r0,`prefix                    ; re-read the prefix
+   BL      release                       ; free the string
+   B       $created                      ; now let's deal with it...
+
+$createanew
+   XBL     claim,`len_prefix             ; claim space for the block
+   LDRW    r5,`prefixlist                ; read top of prefix list
+   CMP     r5,#0                         ; is it 'valid' ?
+   STRWNE  r0,`last                      ; store us as their 'last' pointer
+   STRW    r0,`prefixlist                ; we are the head of the prefix list
+   STR     r5,[r0,#`next]                ; link the list to us
+   MOV     r5,r0                         ; r5-> block
+   MOV     r0,#0                         ; null the 'last' pointer
+   STRW    r0,`last                      ; store it
+$created
+   REM     "Created entry, r5->%&5"
+   CMP     r4,#0                         ; did they give any params ?
+   BEQ     $deleteentry                  ; nope, so delete prefix
+   BL      docanonicalisation            ; canonicalise it
+   STRW    r0,`prefix                    ; store our prefix
+   STRW    r1,`domain                    ; store our domainid
+   LDMFD   (sp)!,{r0-r5,pc}              ; Return from call
+
+$deleteentry
+   LDRW    r1,`last                      ; read 'last' pointer
+   LDRW    r2,`next                      ; read 'next' pointer
+   CMP     r1,#0                         ; is 'last' 0 ? (at head)
+   STRWEQ  r2,`prefixlist                ; if so, store next as 'head'
+   STRNE   r2,[r1,#`next]                ; otherwise, link it to us
+   CMP     r2,#0                         ; is 'next' 0 ? (at tail)
+   STRNE   r1,[r2,#`last]                ; if not, store our 'back' link
+   XBL     release,r5                    ; free 'us'
+   REM     "Freed"
+   LDMFD   (sp)!,{r0-r5,pc}              ; Return from call
+
+; *******************************************************************
+; Subroutine:   docanonicalisation
+; Description:  Canonicalise, claim space for, and return result in
+;               r0
+; Parameters:   r3-> thing to canonicalise
+; Returns:      r0-> new strdup'd string
+; *******************************************************************
+>docanonicalisation
+   STMFD   (sp)!,{r1-r5,link}            ; Stack registers
+   XSWI    "XOS_FSControl",37,r3,0,0,0,0 ; find it's length
+   RSB     r5,r5,#0                      ; r5=length needed
+   ADD     r5,r5,#1                      ; add on one for terminator
+   ADD     r0,r5,#4                      ; add on 'fs len space'
+   XBL     claim                         ; claim that much
+;    TEQ     r0,#0                         ; check enough space (N/A)
+   ADD     r2,r0,#4                      ; r2-> buffer for result
+   REM     "Bytes needed was %r5, string at %&2"
+   XSWI    "XOS_FSControl",37,,,0,0      ; decode it to buffer
+   REM     "Canonicalised to %$2, returned r5=%r5"
+   MOV     r1,#0                         ; 0 bytes into it
+$findcolonloop
+   LDRB    r0,[r2,r1]                    ; read a byte
+   CMP     r0,#32                        ; is it 'term' ?
+   MOVEQ   r1,#0                         ; if so, the string is 0 long
+   BEQ     $found                        ; and pretend we found it
+   CMP     r0,#ASC(":")                  ; is it a colon ?
+   ADDNE   r1,r1,#1                      ; if not, next char
+   BNE     $findcolonloop                ; and go around more
+$found
+   MOV     r3,#0                         ; terminate at it
+   STRB    r3,[r2,r1]                    ; store over the colon
+   STRB    r1,[r2,#-4]!                  ; store the length and decrment
+   ADD     r0,r2,r1                      ; r0-> terminator
+   ADD     r0,r0,#1                      ; r0-> after terminator
+   XBL     strlen                        ; find strlen
+   STRB    r1,[r2,#1]                    ; store at offset 1
+   MOV     r0,r2                         ; r0-> block
+   LDMFD   (sp)!,{r1-r5,pc}              ; Return from call
+
+>replacevars
+   STMFD   (sp)!,{r0-r10,link}           ; Stack registers
+   LDRW    r10,`prefixlist               ; r10-> our list
+   LMOV    r0,#&FF8                      ; address of domain Id
+   LDR     r0,[r0]                       ; read our domain id
+   RAS     r10,r0,#`domain               ; find if it's in the list
+   TEQ     r10,#0                        ; did we find it
+$nothingdone
+   LDMEQFD (sp)!,{r0-r10,pc}             ; nope, so return nicely
+; find len of CurrentFilingSystem
+   XSWI    "XOS_ReadVarVal",^$`fscsfs,-1,-1,0,0 ; find len of current fs
+   TEQ     r2,#0                         ; was there a variable ?
+   MOVEQ   r8,#0                         ; if none, no current fs
+   BEQ     $gotoldfs
+   RSB     r2,r2,#0                      ; r0=length to claim
+   ADD     r2,r2,#1                      ; 1 more, to be sure !
+   XBL     claim,r2                      ; claim it
+   TEQ     r0,#0                         ; did it work ?
+   BEQ     $nothingdone                  ; if not, we failed - abort !
+   MOV     r8,r0                         ; r8-> fs
+; read CurrentFilingSystem
+   XSWI    "XOS_ReadVarVal",^$`fscsfs,r8,,0,0 ; read current fs
+   MOV     r0,#0
+   STR     r0,[r8,r2]                    ; store terminator after string
+$gotoldfs
+   MOV     r0,#(fscsd_leftlen+fscsd_rightlen+1) ; base length of string
+   LDR     r4,[r10,#`prefix]             ; read pointer to prefix
+   LDRB    r4,[r4,#0]                    ; read length of FS
+   ADD     r2,r4,#1                      ; add one for luck
+   ADD     r0,r0,r2                      ; add on the number of bytes read
+   BL      claim                         ; claim space for variable name
+   TEQ     r0,#0                         ; did it fail ?
+   BEQ     $nothingdone                  ; if so, panic !
+   MOV     r6,r0                         ; r6-> csd variable name
+   MOV     r1,#fscsd_leftlen             ; r1 = len to copy
+   ADR     r3,$`fscsd_left               ; address to copy from
+$leftloop
+   SUBS    r1,r1,#1                      ; go down by one
+   BMI     $leftdone                     ; if -ve, we're done
+   LDRB    r2,[r3,r1]                    ; read byte
+   STRB    r2,[r6,r1]                    ; store in new buffer
+   B       $leftloop                     ; and do again
+; copied the left side
+$leftdone
+   LDR     r0,[r10,#`prefix]             ; read pointer to prefix data
+   ADD     r0,r0,#4                      ; skip the fs len, r0-> fs
+   ADD     r1,r6,#fscsd_leftlen          ; add on leftlen (-> fsname)
+   XBL     strcpy,,r1                    ; copy it on
+   ADD     r1,r1,r4                      ; add on fslen
+   XBL     strcpy,^$`fscsd_right         ; and the right side
+; read csd var len
+   XSWI    "XOS_ReadVarVal",r6,-1,-1,0,0 ; find length of it's var
+   TEQ     r2,#0                         ; was there a variable ?
+   MOVEQ   r7,#0                         ; if none, no current directory
+   BEQ     $gotblks
+; now read val itself
+   RSB     r2,r2,#0                      ; r0=length to claim
+   ADD     r2,r2,#2                      ; 1 more, to be sure !
+   XBL     claim,r2                      ; claim it
+   TEQ     r0,#0                         ; did it work ?
+   BEQ     $nothingdone                  ; if not, we failed - abort !
+   MOV     r7,r0                         ; r7-> fs value
+   XSWI    "XOS_ReadVarVal",r6,r7,,0,0   ; read current fs
+   MOV     r0,#0
+   STR     r0,[r7,r2]                    ; store terminator after string
+   REM     "Got FS, r2 returned %r2"
+$gotblks ; temporary until we're got it working
+   REM     "FS was %$8"
+   REM     "FSCSD Var = %$6"
+   REM     "FSCSD = %$7"
+; now to set the vars
+   LDR     r5,[r10,#`prefix]             ; read pointer to prefix block
+   LDRB    r2,[r5,#0]                    ; read length of FS
+   ADD     r1,r5,#4                      ; r1-> value to set
+   REM     "Setting FS to %$1"
+   XSWI    "XOS_SetVarVal",^$`fscsfs,,,0,0 ; set current fs
+   LDRB    r2,[r5,#0]                    ; read length of FS
+   ADD     r1,r5,r2                      ; r1-> value to set
+   ADD     r1,r1,#5                      ; skip the 'length' data
+   LDRB    r2,[r5,#1]                    ; read length of csd
+   REM     "Setting CSD to %$1"
+   XSWI    "XOS_SetVarVal",r6,,,0,0      ; set csd
+   LDMFD   (sp)!,{r0-r10,pc}             ; return nicely
+
+$`fscsfs
+%fscsd_leftlen=LEN("FileSwitch$")
+%fscsd_rightlen=LEN("$CSD")
+$`fscsd_left
+   EQUZA   "FileSwitch$CurrentFilingSystem"
+$`fscsd_right
+   EQUZA   "$CSD"
+
+#Library "Memory",claim.release.strdup
+#Library "Strings",strlen.strcpy
+#Here Libraries
+#Post
+REM #Run <CODE>
