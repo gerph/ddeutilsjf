@@ -145,18 +145,22 @@ $done
 ; Subroutine:   swi_setclsize
 ; Description:  Set the Command Line length
 ; Parameters:   r0 = length to use
-; Returns:      none
+; Returns:      r0-> destination block
 ; *******************************************************************
 >swi_setclsize
-   STMFD   (sp)!,{r0-r5,link}            ; Stack registers
-   MOV     r1,r0                         ; r1=length needed
+   STMFD   (sp)!,{r1-r5,link}            ; Stack registers
+   MOV     r3,r0                         ; r1=length needed
+   REM     "Set CL Size %r3"
    LDRW    r0,`clptr                     ; have we got an extended buffer ?
    TEQ     r0,#0                         ; is there one ?
    BLNE    release                       ; if so, release it
-   XBL     claim,r1                      ; claim that length
-   STRW    r1,`clsize                    ; store the size in ws
-   STRW    r0,`clptr                     ; store the pointer in workspace
-   LDMFD   (sp)!,{r0-r5,pc}              ; Return from call
+   XSWI    "XOS_Module",6                ; claim space
+   MOVVS   r3,#0                         ; if failed, size = 0
+   MOVVS   r2,#0                         ; and pointer = 0
+   STRW    r3,`clsize                    ; store the size in ws
+   STRW    r2,`clptr                     ; store the pointer in workspace
+   MOVVC   r0,r2                         ; r0-> block
+   LDMFD   (sp)!,{r1-r5,pc}              ; Return from call
 
 ; *******************************************************************
 ; Subroutine:   swi_setcl
@@ -171,21 +175,27 @@ $done
    TEQ     r3,#0                         ; is it set ?
    BEQ     $notset                       ; if not, jump out
 ; check cl short enough
-   BL      strlen                        ; find it's length
+;    BL      strlen                        ; find it's length
    LDRW    r2,`clsize                    ; read buffer length
-   CMP     r1,r2                         ; is it too small ?
-   BGE     $tooshort                     ; buffer not large enough
+;    CMP     r1,r2                         ; is it too small ?
+;    BGE     $tooshort                     ; buffer not large enough
 ; copy string (from r0, to r3, length=r3)
-   ADD     r1,r0,r2                      ; r1-> end of copied section
 $copy
+   SUBS    r2,r2,#1                      ; decrement length
+   BMI     $done                         ; if 0, then done
    LDRB    r4,[r0],#1                    ; read and inc
    CMP     r4,#32                        ; is it < ' ' ?
    MOVLT   r4,#0                         ; if so, use 0 to terminate
    STRB    r4,[r3],#1                    ; write and inc
    REM     "Read %r4 (%a4)"
-   CMP     r0,r1                         ; are we done ?
-   BLT     $copy                         ; if not, go around for more
-   LDMFD   (sp)!,{r0-r5,pc}              ; Return from call
+   B       $copy                         ; go for more
+$done
+
+   LDRW    r3,`clptr                     ; read the pointer
+   REM     "Set CL '%$3'"
+
+   LDMFD   (sp)!,{r0-r5,link}            ; restore regs
+   BICS    pc,link,#vbit                 ; return with V clear
 
 $notset
 $tooshort
@@ -193,7 +203,7 @@ $tooshort
    ADR     r0,$`error                    ; read error
    ORRS    pc,link,#vbit                 ; return with V set
 $`error
-   EQUD    0
+   EQUD    &20601
    EQUZA   "DDEUtils buffer not set or too short"
 
 ; *******************************************************************
@@ -218,17 +228,24 @@ $`error
    LDRW    r3,`clptr                     ; read the pointer
    TEQ     r3,#0                         ; is it set ?
    BEQ     $notset                       ; if not, jump out
+   REM     "Get CL '%$3'"
 ; now copy the string
    LDRW    r2,`clsize                    ; read length of cli buffer
-   ADD     r1,r0,r2                      ; r1-> end of copied section
 $copy
+   SUBS    r2,r2,#1                      ; decrement length to read
+   BMI     $done
    LDRB    r4,[r3],#1                    ; read and inc
    CMP     r4,#32                        ; is it < ' ' ?
    MOVLT   r4,#0                         ; if so, use 0 to terminate
    STRB    r4,[r0],#1                    ; write and inc
    REM     "Read %r4 (%a4)"
-   CMP     r0,r1                         ; are we done ?
-   BLT     $copy                         ; if not, go around for more
+   B       $copy
+$done
+   LDRW    r0,`clptr                     ; read the pointer
+   BL      release                       ; release space
+   MOV     r0,#0                         ; 0 for length
+   STRW    r0,`clptr                     ; zero pointer
+   STRW    r0,`clsize                    ; zero size
    LDMFD   (sp)!,{r0-r5,pc}              ; Return from call
 
 $notset
@@ -236,7 +253,7 @@ $notset
    ADR     r0,$`error                    ; read error
    ORRS    pc,link,#vbit                 ; return with V set
 $`error
-   EQUD    0
+   EQUD    &20601
    EQUZA   "DDEUtils buffer not set"
 
 ; *******************************************************************
@@ -364,6 +381,7 @@ $`error
    STR     r1,[r5,#0]                    ; store length of block
    ADD     r1,r5,#20                     ; r1-> filename dest
    BL      strcpy                        ; copy the string there
+   XBL     release,r2                    ; release the canonicalise space
    MOV     r0,#0                         ; 0's for the ref's
    STR     r0,[r5,#8]                    ; store theirref
    STR     r0,[r5,#12]                   ; store ourref
@@ -416,7 +434,7 @@ $done
 ; Subroutine:   canonicalise
 ; Description:  Canonicalise a path
 ; Parameters:   r2-> filename
-; Returns:      r2-> canonical filename
+; Returns:      r2-> canonical filename, in memory buffer
 ; *******************************************************************
 >canonicalise
    STMFD   (sp)!,{r0-r1,r3-r5,link}      ; Stack registers
@@ -526,6 +544,7 @@ $findcolonloop
    CMP     r0,#ASC(":")                  ; is it a colon ?
    ADDNE   r1,r1,#1                      ; if not, next char
    BNE     $findcolonloop                ; and go around more
+; r2-> canonicalised name, r1 = offset of colon in string
 $found
    MOV     r3,#0                         ; terminate at it
    STRB    r3,[r2,r1]                    ; store over the colon
@@ -644,6 +663,7 @@ $gotblks ; temporary until we're got it working
    LDMFD   r12,{pc}                      ; return there
 
 ; we drop to here on return
+   NOP
    STMFD   (sp)!,{r0-r9,pc}              ; stack regs 0-8 and pc
    MOV     r0,pc                         ; r0=pc
    REM     "Called on exit"
@@ -671,6 +691,12 @@ $notspecial
    MOVNE   r2,r1                         ; otherwise, r2=length
    REM     "Restoring CSD %$7"
    XSWI    "XOS_SetVarVal",r6,r7,,0,0    ; set it (restore csd)
+; release the space !
+   CMP     r8,#0                         ; is r8 (fs) valid ?
+   XBLNE   release,r8                    ; if so, release it
+   XBL     release,r6                    ; release the csd var
+   CMP     r7,#0                         ; is r7 (csd) valid ?
+   XBLNE   release,r7                    ; if so, release it
 ; now return nicely
    REM     "Returning"
    LDMFD   (sp)!,{r0-r9,link}            ; restore registers

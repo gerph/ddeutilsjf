@@ -1,14 +1,14 @@
-/* DDEUtilsJF (2.03) 14:40:40 30/5/2001
+/* DDEUtilsJF (2.04) 14:45:16 30/5/2001
  *
  * This file is automatically maintained by commit, do not edit manually.
  *
  */
-#define Module_MajorVersion_CMHG        2.03
+#define Module_MajorVersion_CMHG        2.04
 #define Module_MinorVersion_CMHG        
 #define Module_Date_CMHG                30 May 2001
 
-#define Module_MajorVersion             "2.03"
-#define Module_Version                  203
+#define Module_MajorVersion             "2.04"
+#define Module_Version                  204
 #define Module_MinorVersion             ""
 #define Module_Date                     "30 May 2001"
 
@@ -18,6 +18,6 @@
 #define Module_ComponentName            "DDEUtilsJF"
 #define Module_ComponentPath            "Sources/Programmer/DDEUtilsJF"
 
-#define Module_FullVersion              "2.03"
-#define Module_FullVersionAndDate       "2.03 (30 May 2001)"
-#define Module_HelpVersion              "2.03 (30 May 2001)"
+#define Module_FullVersion              "2.04"
+#define Module_FullVersionAndDate       "2.04 (30 May 2001)"
+#define Module_HelpVersion              "2.04 (30 May 2001)"

@@ -2,9 +2,32 @@ Log file for DDEUtilsJF
 =======================
 
 ------------------------------------------------------------------------
-    Version 2.03 14:40:40 30/5/2001
+    Version 2.04 14:45:16 30/5/2001
 ------------------------------------------------------------------------
 $Log$
+------------------------------------------------------------------------
+    Version 2.03 14:40:40 30/5/2001
+------------------------------------------------------------------------
+Revision 1.4  2001/05/30 13:43:59  justin
+Summary:
+  Renamed the module to DDEUtilsJF.
+  Throwback handling support added.
+  Long command line support added.
+  Finalisation handler added to tidy up.
+  Version number bumped to higher than that of DDEUtils.
+Detail:
+  * Previously we used the name 'Prefix', but we now support enough of
+    DDEUtils to take over its functionality.
+  * We can now handle the throwback functions of DDEUtils, too.
+  * We can now handle the long command line functions, as well.
+  * We now release our workspace when we are killed.
+  * By bumping the version number up we ensure that we are always used in
+    preference to standard DDEUtils.
+Admin:
+  This version is being comitted for historical note only.
+Tag:
+  DDEUtilsJF-2_03
+
 ------------------------------------------------------------------------
     Version 1.01 14:36:17 30/5/2001
 ------------------------------------------------------------------------
