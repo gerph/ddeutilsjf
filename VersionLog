@@ -2,9 +2,23 @@ Log file for DDEUtilsJF
 =======================
 
 ------------------------------------------------------------------------
-    Version 1.00 14:33:32 30/5/2001
+    Version 1.01 14:36:17 30/5/2001
 ------------------------------------------------------------------------
 $Log$
+------------------------------------------------------------------------
+    Version 1.00 14:33:32 30/5/2001
+------------------------------------------------------------------------
+Revision 1.2  2001/05/30 13:34:34  justin
+Summary:
+  Initial import of DDEUtils.
+Detail:
+  * This is the first version of DDEUtils I wrote; it merely handles
+    simple prefixes.
+Admin:
+  This version is being committed for historical note only.
+Tag:
+  DDEUtilsJF-1_00 (retagged)
+
 Revision 1.1  2001/05/30 13:28:06  justin
 Created VersionNum file
 

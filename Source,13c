@@ -20,13 +20,18 @@ Define Module
  Author    Justin Fletcher
  Commands
   Name     MPrefix
-  Code     prefix
+  Code     com_prefix
   Max      1
   Min      0
+  Help     ...
+           *Prefix sets the current directory for the current context. Used
+           with no parameters it resets the current directory to the global
+           value.
+  Syntax   Syntax: *Prefix [<directory>]
 
-  Name     Pres
-  Code     pres
-  Help     Lists prefixes
+  Name     Prefixes
+  Code     com_prefixes
+  Help     *Prefixes lists prefixes currently defined.
  End commands
  Vectors
   FileV      filev
@@ -34,6 +39,14 @@ Define Module
   FindV      findv
   FSControlV fscontrolv
  End Vectors
+ Services
+  WimpCloseDown  wimp_closedown
+ End Services
+ SWIs
+  Prefix     Prefix
+  Base       &425C0
+   0         Prefix    swi_prefix
+ End SWIs
  Workspace *`len_module
 End Module
 
@@ -43,47 +56,46 @@ Pre
  module_date$=version_date$
 End Pre
 
-
+#Rem off
 >findv
-   B       replacevars
+   B       replacevars                   ; OS_Find
 >fscontrolv
-   B       replacevars
+   TEQ     r0,#2                         ; is it 2 (New app starting) ?
+   TEQNE   r0,#4                         ; or 4 (*Run file) ?
+   MOVEQ   pc,link                       ; return if so
+   TEQ     r0,#0                         ; is it set csd ?
+   ORREQ   r12,r12,#1                    ; if so, mark us as being 'special'
+   B       replacevars                   ; call replacement OS_FSControl
+
 >gbpbv
-   B       replacevars
+   B       replacevars                   ; OS_GBPB
 >filev
-   B       replacevars
+   B       replacevars                   ; OS_File
 
-;need to trap service &53 (WimpClosedown)
-;Vectors-
-;       8,12,13,15
-;     = FileV, GBPBV, FindV, FSControlV
-;code variable Prefix$Dir
->pres
-   STMFD   (sp)!,{r0-r5,link}            ; Stack registers
-   LDR     r12,[r12]                     ; read our workspace
-   LDRW    r5,`prefixlist                ; read head of list
-$loop
-   CMP     r5,#0                         ; done ?
-   BEQ     $done
-   LDRW    r0,`next                      ; read next
-   LDRW    r1,`last                      ; read last
-   LDRW    r2,`domain                    ; read domainid
-   LDRW    r3,`prefix                    ; read prefix
-   LDRB    r4,[r3],#4                    ; r4 = length of 'fs'
-   ADD     r4,r4,r3                      ; add on to base
-   REM     "This=%&5, Next=%&0, Last=%&1"
-   REM     "Domain=%&2, FS=%$3, CSD=%$4"
-   MOV     r5,r0                         ; this=next
-   B       $loop                         ; and go some more
-$done
-   LDMFD   (sp)!,{r0-r5,pc}              ; Return from call
+>wimp_closedown
+   TEQ     r0,#0                         ; is it a 'real' closedown ?
+   MOVNES  pc,link                       ; return if not
+   STMFD   (sp)!,{r0,link}               ; Stack registers
+   XBL     swi_prefix,0                  ; unset the prefix if one
+   LDMFD   (sp)!,{r0,pc}^                ; Return from call
 
->prefix
+; *******************************************************************
+; Subroutine:   swi_prefix
+; Description:  Sets the prefix for the current directory (or unsets
+;               it)
+; Parameters:   r0-> prefix name, or "" or 0 to unset
+; Returns:      with error if can't do it
+; *******************************************************************
+>swi_prefix
    STMFD   (sp)!,{r0-r5,link}            ; Stack registers
    MOV     r3,r0                         ; r3-> string
-   MOV     r4,r1                         ; r4 = args
-   REM     " *Prefix %$3 (%r4)"
-   LDR     r12,[r12]                     ; read our workspace
+   CMP     r0,#0                         ; is r0 = 0 ?
+   LDRNEB  r4,[r0]                       ; if not read first byte of r0
+   CMPNE   r4,#32                        ; is it <32 ?
+   MOVLE   r4,#0                         ; if either, no args
+   MOVGT   r4,#1                         ; else, r4 = 1 arg
+; r3-> args, r4 = 0 for no args (unset), 1 for 1 arg (set)
+;    REM     " *Prefix %$3 (%r4)"
    LMOV    r0,#&FF8                      ; address of domain Id
    LDR     r1,[r0]                       ; read our domain id
    LDRW    r5,`prefixlist                ; read list
@@ -105,7 +117,7 @@ $createanew
    MOV     r0,#0                         ; null the 'last' pointer
    STRW    r0,`last                      ; store it
 $created
-   REM     "Created entry, r5->%&5"
+;    REM     "Created entry, r5->%&5"
    CMP     r4,#0                         ; did they give any params ?
    BEQ     $deleteentry                  ; nope, so delete prefix
    BL      docanonicalisation            ; canonicalise it
@@ -122,7 +134,47 @@ $deleteentry
    CMP     r2,#0                         ; is 'next' 0 ? (at tail)
    STRNE   r1,[r2,#`last]                ; if not, store our 'back' link
    XBL     release,r5                    ; free 'us'
-   REM     "Freed"
+;    REM     "Freed"
+
+   LDMFD  (sp)!,{r0-r5,pc}               ; Return from call
+
+; *******************************************************************
+; Subroutine:   com_prefixes
+; Description:  Display the prefixes currently set
+; Parameters:   r12-> private word (not = private word!)
+; Returns:      none
+; *******************************************************************
+>com_prefixes
+   STMFD   (sp)!,{r0-r5,link}            ; Stack registers
+   LDR     r12,[r12]                     ; read our workspace
+   LDRW    r5,`prefixlist                ; read head of list
+$loop
+   CMP     r5,#0                         ; done ?
+   BEQ     $done
+   LDRW    r0,`next                      ; read next
+   LDRW    r1,`last                      ; read last
+   LDRW    r2,`domain                    ; read domainid
+   LDRW    r3,`prefix                    ; read prefix
+   LDRB    r4,[r3],#4                    ; r4 = length of 'fs'
+   ADD     r4,r4,r3                      ; add on to base
+   ADD     r4,r4,#1                      ; skip terminator
+   REMP    "This=%&5, Next=%&0, Last=%&1"
+   REMP    "Domain=%&2, FS=%$3, CSD=%$4"
+   MOV     r5,r0                         ; this=next
+   B       $loop                         ; and go some more
+$done
+   LDMFD   (sp)!,{r0-r5,pc}              ; Return from call
+
+; *******************************************************************
+; Subroutine:   com_prefix
+; Description:  Sets the current prefix
+; Parameters:   r0 = cli
+; Returns:      none
+; *******************************************************************
+>com_prefix
+   STMFD   (sp)!,{r0-r5,link}            ; Stack registers
+   LDR     r12,[r12]                     ; read our workspace
+   BL      swi_prefix                    ; process it (quickly?)
    LDMFD   (sp)!,{r0-r5,pc}              ; Return from call
 
 ; *******************************************************************
@@ -141,9 +193,8 @@ $deleteentry
    XBL     claim                         ; claim that much
 ;    TEQ     r0,#0                         ; check enough space (N/A)
    ADD     r2,r0,#4                      ; r2-> buffer for result
-   REM     "Bytes needed was %r5, string at %&2"
    XSWI    "XOS_FSControl",37,,,0,0      ; decode it to buffer
-   REM     "Canonicalised to %$2, returned r5=%r5"
+;    REM     "Canonicalised to %$2, returned r5=%r5"
    MOV     r1,#0                         ; 0 bytes into it
 $findcolonloop
    LDRB    r0,[r2,r1]                    ; read a byte
@@ -164,13 +215,28 @@ $found
    MOV     r0,r2                         ; r0-> block
    LDMFD   (sp)!,{r1-r5,pc}              ; Return from call
 
+; *******************************************************************
+; Subroutine:   replacevars
+; Description:  Replaces FS$CurrentFS and FS$<currentfs>$csd for the
+;               duration of the call, then restores them afterwards
+; Parameters:   as vector
+; Returns:      as vector, having postprocessed it
+; *******************************************************************
 >replacevars
    STMFD   (sp)!,{r0-r10,link}           ; Stack registers
+; check 'special' markers
+   TST     r12,#3                        ; is b0 or b1 set in ws ?
+   AND     r9,r12,#3                     ; r9='marker'
+   BICNE   r12,r12,#3                    ; clear it if so
+
    LDRW    r10,`prefixlist               ; r10-> our list
    LMOV    r0,#&FF8                      ; address of domain Id
    LDR     r0,[r0]                       ; read our domain id
    RAS     r10,r0,#`domain               ; find if it's in the list
    TEQ     r10,#0                        ; did we find it
+
+;    STRNE   r10,[r10,#`domain]            ; kill the next recurrance
+
 $nothingdone
    LDMEQFD (sp)!,{r0-r10,pc}             ; nope, so return nicely
 ; find len of CurrentFilingSystem
@@ -228,8 +294,7 @@ $leftdone
    MOV     r7,r0                         ; r7-> fs value
    XSWI    "XOS_ReadVarVal",r6,r7,,0,0   ; read current fs
    MOV     r0,#0
-   STR     r0,[r7,r2]                    ; store terminator after string
-   REM     "Got FS, r2 returned %r2"
+   STRB    r0,[r7,r2]                    ; store terminator after string
 $gotblks ; temporary until we're got it working
    REM     "FS was %$8"
    REM     "FSCSD Var = %$6"
@@ -246,8 +311,55 @@ $gotblks ; temporary until we're got it working
    LDRB    r2,[r5,#1]                    ; read length of csd
    REM     "Setting CSD to %$1"
    XSWI    "XOS_SetVarVal",r6,,,0,0      ; set csd
-   LDMFD   (sp)!,{r0-r10,pc}             ; return nicely
+; now to pass on to original caller
+   LDMFD   (sp)!,{r0-r5}                 ; restore 'normal' registers
+   STMFD   (sp),{r6,r7,r8,r9}            ; stack 'our' registers (nowb)
+   LDMFD   (sp),{r6-r10}                 ; re-read old registers
+   SUB     sp,sp,#4*4                    ; move down to our bottom of stack
+; on stack now, r6,r7,r8,r9,or6,or7,or8,or9,or10,return to address
+   STMFD   (sp)!,{pc}                    ; store our pc so we know we return
+   ADD     r12,sp,#4*10                  ; read return point
+   LDMFD   r12,{pc}                      ; return there
 
+; we drop to here on return
+   STMFD   (sp)!,{r0-r9,pc}              ; stack regs 0-8 and pc
+   MOV     r0,pc                         ; r0=pc
+   REM     "Called on exit"
+   ADD     r5,sp,#4*11                   ; skip the registers we just stacked
+   LDMIA   r5,{r6,r7,r8,r9}              ; re-read the regs we hung on to
+; r6-> csd var, r7-> csd, r8-> csfs, r9= 'special' marker
+; first perform special functions
+   TEQ     r9,#1                         ; is it 'set csd' ?
+   BNE     $notspecial                   ; if not, skip this
+   TST     r0,#vbit                      ; is v set (was there an error) ?
+   BNE     $notspecial                   ; if error, abort
+   XSWI    "XPrefix_Prefix",^$`thisdir   ; call the swi marking new dir
+$notspecial
+; restore current filing system
+   CMP     r8,#0                         ; is csfs 0 ?
+   XBLNE   strlen,r8                     ; if not, read it's length
+   MVNEQ   r2,#NOT -1                    ; if so, use -1 to delete
+   MOVNE   r2,r1                         ; otherwise, r2=length
+   REM     "Restoring FS %$8"
+   XSWI    "XOS_SetVarVal",^$`fscsfs,r8,,0,0 ; set it (restore current fs)
+; restore csd variable
+   CMP     r7,#0                         ; is csd 0 ?
+   XBLNE   strlen,r7                     ; if not, read it's length
+   MVNEQ   r2,#NOT -1                    ; if so, use -1 to delete
+   MOVNE   r2,r1                         ; otherwise, r2=length
+   REM     "Restoring CSD %$7"
+   XSWI    "XOS_SetVarVal",r6,r7,,0,0    ; set it (restore csd)
+; now return nicely
+   REM     "Returning"
+   LDMFD   (sp)!,{r0-r9,link}            ; restore registers
+   ADD     sp,sp,#4*10                   ; add on the 9 regs to skip
+   TST     link,#vbit                    ; was v set
+   LDMFD   (sp)!,{link}                  ; re-read link
+   ORRNES  pc,link,#vbit                 ; if so, return with vset
+   BICEQS  pc,link,#vbit                 ; else, don't
+
+$`thisdir
+   EQUZA   "@"
 $`fscsfs
 %fscsd_leftlen=LEN("FileSwitch$")
 %fscsd_rightlen=LEN("$CSD")
@@ -260,4 +372,4 @@ $`fscsd_right
 #Library "Strings",strlen.strcpy
 #Here Libraries
 #Post
-REM #Run <CODE>
+#Run <CODE>
