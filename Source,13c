@@ -720,4 +720,5 @@ $`fscsd_right
 #Library "Strings",strlen.strcpy
 #Here Libraries
 #Post
-#Run <CODE>
+REM Don't try loading the code - it won't end well on a 32bit system.
+REM #Run <CODE>

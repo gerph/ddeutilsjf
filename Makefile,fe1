@@ -39,7 +39,6 @@ OBJS = rm.$(COMPONENT)
 rm.$(COMPONENT):   Source
         JFPatch $(JFPatchflags) Source
 
-
 # User-editable dependencies:
 
 
@@ -49,6 +48,9 @@ rm.$(COMPONENT):   Source
         cc $(ccflags) -o $@ $<
 .j.o:
         JFPatch -in $< $(jfpatchflags)
+
+.INIT:
+        cdir rm
 
 
 # Dynamic dependencies:

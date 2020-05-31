@@ -36,9 +36,13 @@ Bugs
 ----
 There are bound to be bugs in this version other than those mentioned above,
 if you find any, or would like the problems fixed (or explained as to why
-they cannot be fixed :-) ) you can contact me at <Gerph@innocent.com>.
+they cannot be fixed :-) ) you can contact me at <gerph@gerph.org>.
 
 Suggestions and ideas are welcome and I'm very willing to produce a new
 version if there is a need.
 
 
+Warning (2020-05-31)
+-------
+This version is still 26bit-only. It's been updated to build in CI, as a
+demonstration.
