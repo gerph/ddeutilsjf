@@ -25,6 +25,7 @@ jfpatch:
         zip -9r /tmp/source-archive.zip * .robuild.yaml
         # Send the archive file to JFPatch as a service
         curl -q -F 'source=@/tmp/source-archive.zip' -o /tmp/robuild/result.json http://jfpatch.riscos.online/build/json
+        cat /tmp/robuild/result.json
         # Extract any sysetm messages and output
         jq -r '.messages[]' /tmp/robuild/result.json > /tmp/robuild/messages.txt
         jq -r 'reduce .output[] as $i ("";. + $i)' /tmp/robuild/result.json > /tmp/robuild/output.txt
