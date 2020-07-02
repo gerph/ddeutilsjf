@@ -12,7 +12,7 @@
 #   - Update the 4th step ('upload-artifacts') to include the same names.
 #
 
-name: ROBuild
+name: RISC OS
 
 # Controls when the action will run. Triggers the workflow on push or pull request
 # events but only for the master branch
@@ -23,7 +23,7 @@ on:
     branches: [ "*" ]
 
 jobs:
-  build:
+  build-riscos:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
 
@@ -38,11 +38,11 @@ jobs:
         set -o pipefail
         mkdir /tmp/robuild
         # Zip up the source to send to robuild
-        zip -9r /tmp/source-archive.zip * .robuild.yaml
+        zip -q9r /tmp/source-archive.zip * .robuild.yaml
         # Send the archive file to JFPatch as a service
-        curl -q -F 'source=@/tmp/source-archive.zip' -o /tmp/robuild/result.json http://jfpatch.riscos.online/build/json
-        # Extract any sysetm messages and output
-        jq -r '.messages[]' /tmp/robuild/result.json > /tmp/robuild/messages.txt
+        curl -q -F 'source=@/tmp/source-archive.zip' -o /tmp/robuild/result.json https://json.build.riscos.online/build/json
+        # Extract any system messages and output
+        jq -r '.messages[]' /tmp/robuild/result.json > /tmp/robuild/messages.txt || { echo "Server response:" ; cat /tmp/robuild/result.json ; false ; }
         jq -r 'reduce .output[] as $i ("";. + $i)' /tmp/robuild/result.json > /tmp/robuild/output.txt
         # Extract return code
         rc=$(jq -r .rc /tmp/robuild/result.json | tee /tmp/robuild/rc.json)
@@ -74,9 +74,13 @@ jobs:
             exit 1
         fi
 
-    - name: Give the archive a versioned name
+    - name: Give the output a versioned name
       run: |
-        version=$(sed '/MajorVersion / ! d ; s/.*MajorVersion *"\(.*\)"/\1/' VersionNum)
+        if [[ -f VersionNum ]] ; then
+            version=$(sed '/MajorVersion / ! d ; s/.*MajorVersion *"\(.*\)"/\1/' VersionNum)
+        else
+            version=$(git rev-parse --short HEAD)
+        fi
         echo This is version: $version
         if [ -f /tmp/robuild/built ] ; then
             cp /tmp/robuild/built "/tmp/robuild/DDEUtils-$version.zip"
