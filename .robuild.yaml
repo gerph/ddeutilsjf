@@ -21,8 +21,6 @@ jobs:
     # Commands which should be executed to perform the build.
     # The build will terminate if any command returns a non-0 return code or an error.
     script:
-      - | need to create the directory first; might be pyromaniac bug.
-      - cdir rm
       - amu release
       - cdir Release
       - copy rm.DDEUtils Release.DDEUtils ~CV~R
