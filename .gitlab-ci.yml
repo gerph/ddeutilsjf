@@ -26,7 +26,7 @@ riscos:
         # Fetch the build client
         curl -s -L -o riscos-build-online https://github.com/gerph/robuild-client/releases/download/v0.05/riscos-build-online && chmod +x riscos-build-online
         # Send the archive file to build service
-        ./riscos-build-online -i /tmp/source-archive.zip -t 60 -o /tmp/built
+        ./riscos-build-online -i /tmp/source-archive.zip -t 180 -o /tmp/built
 
       - |
         if [[ -f VersionNum ]] ; then
